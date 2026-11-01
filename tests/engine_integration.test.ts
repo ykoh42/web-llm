@@ -124,6 +124,47 @@ describe("MLCEngine deterministic integration", () => {
     },
   );
 
+  test.each([false, true])(
+    "text completion passes response format through with stream=%s",
+    async (stream) => {
+      const { engine } = createEngineWithPipeline(1);
+      const prefill = jest.spyOn(engine, "prefill");
+      for (const response_format of [
+        { type: "grammar" as const, grammar: 'root ::= "ok"' },
+        { type: "json_object" as const, schema: "{}" },
+        {
+          type: "structural_tag" as const,
+          structural_tag: { type: "const_string", value: "ok" },
+        },
+      ]) {
+        const result = await engine.completion({
+          model: MODEL_ID,
+          prompt: "Alpha",
+          stream,
+          response_format,
+          ...(stream && { stream_options: { include_usage: true } }),
+        });
+        const chunks = [];
+        if (stream)
+          for await (const chunk of result as AsyncIterable<Completion>)
+            chunks.push(chunk);
+        const usage = stream
+          ? chunks.at(-1)?.usage
+          : (result as Completion).usage;
+        expect(prefill).toHaveBeenLastCalledWith(
+          expect.anything(),
+          expect.anything(),
+          expect.anything(),
+          expect.objectContaining({ response_format }),
+        );
+        if (response_format.type !== "structural_tag") {
+          expect(usage?.extra?.grammar_init_s).toBeDefined();
+          expect(usage?.extra?.grammar_per_token_s).toBeDefined();
+        }
+      }
+    },
+  );
+
   test("completion echoes prompt when requested", async () => {
     jest.useFakeTimers().setSystemTime(FIXED_CREATED_DATE);
     const { engine } = createEngineWithPipeline(1);

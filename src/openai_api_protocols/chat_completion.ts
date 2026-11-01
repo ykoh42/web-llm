@@ -418,6 +418,56 @@ export interface ChatCompletionChunk {
 
 export const ChatCompletionRequestUnsupportedFields: Array<string> = []; // all supported as of now
 
+/** Check the fields shared by chat and text response formats. */
+export function validateResponseFormat(
+  responseFormat: ResponseFormat | null | undefined,
+): void {
+  // Schema can only be specified when type is `json_object`.
+  if (responseFormat?.schema !== undefined && responseFormat?.schema !== null) {
+    if (responseFormat?.type !== "json_object") {
+      throw new InvalidResponseFormatError();
+    }
+  }
+
+  // When grammar is specified, the type needs to be grammar
+  if (
+    responseFormat?.grammar !== undefined &&
+    responseFormat?.grammar !== null
+  ) {
+    if (responseFormat?.type !== "grammar") {
+      throw new InvalidResponseFormatGrammarError();
+    }
+  }
+
+  // When type is grammar, the grammar field needs to be specified.
+  if (responseFormat?.type === "grammar") {
+    if (
+      responseFormat?.grammar === undefined ||
+      responseFormat?.grammar === null
+    ) {
+      throw new InvalidResponseFormatGrammarError();
+    }
+  }
+
+  if (
+    responseFormat?.structural_tag !== undefined &&
+    responseFormat?.structural_tag !== null
+  ) {
+    if (responseFormat?.type !== "structural_tag") {
+      throw new InvalidResponseFormatStructuralTagError();
+    }
+  }
+
+  if (responseFormat?.type === "structural_tag") {
+    if (
+      responseFormat?.structural_tag === undefined ||
+      responseFormat?.structural_tag === null
+    ) {
+      throw new InvalidResponseFormatStructuralTagError();
+    }
+  }
+}
+
 /**
  * Post init and verify whether the input of the request is valid. Thus, this function can throw
  * error or in-place update request.
@@ -554,53 +604,7 @@ export function postInitAndCheckFields(
     }
   }
 
-  // 6. Schema can only be specified when type is `json_object`.
-  if (
-    request.response_format?.schema !== undefined &&
-    request.response_format?.schema !== null
-  ) {
-    if (request.response_format?.type !== "json_object") {
-      throw new InvalidResponseFormatError();
-    }
-  }
-
-  // 6.1 When grammar is specified, the type needs to be grammar
-  if (
-    request.response_format?.grammar !== undefined &&
-    request.response_format?.grammar !== null
-  ) {
-    if (request.response_format?.type !== "grammar") {
-      throw new InvalidResponseFormatGrammarError();
-    }
-  }
-
-  // 6.2 When type is grammar, the grammar field needs to be specified.
-  if (request.response_format?.type === "grammar") {
-    if (
-      request.response_format?.grammar === undefined ||
-      request.response_format?.grammar === null
-    ) {
-      throw new InvalidResponseFormatGrammarError();
-    }
-  }
-
-  if (
-    request.response_format?.structural_tag !== undefined &&
-    request.response_format?.structural_tag !== null
-  ) {
-    if (request.response_format?.type !== "structural_tag") {
-      throw new InvalidResponseFormatStructuralTagError();
-    }
-  }
-
-  if (request.response_format?.type === "structural_tag") {
-    if (
-      request.response_format?.structural_tag === undefined ||
-      request.response_format?.structural_tag === null
-    ) {
-      throw new InvalidResponseFormatStructuralTagError();
-    }
-  }
+  validateResponseFormat(request.response_format);
 
   // 7. Function calling hardcoded handlings
   if (request.tools !== undefined && request.tools !== null) {

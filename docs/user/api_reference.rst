@@ -189,6 +189,23 @@ Example:
 
 ---
 
+Text Completions
+----------------
+
+``MLCEngine.completions.create(request: CompletionCreateParams): Promise<Completion | AsyncIterable<Completion>>``
+
+Generates text from a raw prompt. As a WebLLM extension, ``response_format``
+accepts the same JSON schema, grammar, and structural tag formats as chat.
+
+.. code-block:: typescript
+
+   const response = await engine.completions.create({
+       prompt: "Choose a color:",
+       response_format: { type: "grammar", grammar: 'root ::= "red" | "blue"' },
+   });
+
+---
+
 Utility Methods
 ^^^^^^^^^^^^^^^
 

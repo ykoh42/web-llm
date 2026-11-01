@@ -124,3 +124,34 @@ describe("Check completion unsupported requests", () => {
     }).toThrow("`seed` should be an integer, but got");
   });
 });
+
+describe("Completion response format", () => {
+  const model = "Llama-3.1-8B-Instruct-q4f32_1-MLC";
+
+  test.each([
+    [{ schema: "{}" }, "JSON schema is only supported"],
+    [{ grammar: 'root ::= "ok"' }, "When ResponseFormat.type"],
+    [{ type: "grammar" }, "When ResponseFormat.type"],
+    [{ structural_tag: { type: "any_text" } }, "When ResponseFormat.type"],
+    [{ type: "structural_tag" }, "When ResponseFormat.type"],
+  ])("rejects invalid formats %p", (format, message) => {
+    const request = {
+      prompt: "Hello",
+      response_format: format,
+    } as CompletionCreateParams;
+    expect(() => postInitAndCheckFields(request, model)).toThrow(message);
+  });
+
+  test.each([
+    { type: "text" },
+    { type: "json_object", schema: "{}" },
+    { type: "grammar", grammar: 'root ::= "ok"' },
+    { type: "structural_tag", structural_tag: { type: "any_text" } },
+  ])("accepts a valid format %p", (response_format) => {
+    const request = {
+      prompt: "Hello",
+      response_format,
+    } as CompletionCreateParams;
+    expect(() => postInitAndCheckFields(request, model)).not.toThrow();
+  });
+});

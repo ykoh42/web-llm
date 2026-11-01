@@ -151,3 +151,90 @@ test("real WebGPU chat cancellation preserves prefix reuse like explicit interru
     );
   }
 });
+
+test("real WebGPU text completion applies response formats with and without streaming", async ({
+  page,
+}) => {
+  await loadModel(page);
+  const results = await page.evaluate(async () => {
+    const engine = globalThis.gpuEngine;
+    const formats = [
+      {
+        format: { type: "grammar", grammar: 'root ::= "red"' },
+        expected: "red",
+      },
+      {
+        format: {
+          type: "json_object",
+          schema: JSON.stringify({ type: "string", enum: ["red"] }),
+        },
+        expected: '"red"',
+      },
+      {
+        format: {
+          type: "structural_tag",
+          structural_tag: { type: "const_string", value: "red" },
+        },
+        expected: "red",
+      },
+    ];
+    const results = [];
+    for (const { format, expected } of formats) {
+      const request = {
+        prompt: "A color:",
+        max_tokens: 16,
+        temperature: 0,
+        response_format: format,
+      };
+      const response = await engine.completion(request);
+      const chunks = [];
+      for await (const chunk of await engine.completion({
+        ...request,
+        stream: true,
+        stream_options: { include_usage: true },
+      }))
+        chunks.push(chunk);
+      results.push({ expected, response, chunks });
+    }
+    return results;
+  });
+  for (const { expected, response, chunks } of results) {
+    expect(response.choices[0].text).toBe(expected);
+    expect(response.choices[0].finish_reason).toBe("stop");
+    expect(chunks.map((chunk) => chunk.choices[0]?.text ?? "").join("")).toBe(
+      expected,
+    );
+    expect(chunks.at(-2).choices[0].finish_reason).toBe("stop");
+    expect(chunks.at(-1).usage.completion_tokens).toBeGreaterThan(0);
+  }
+});
+
+test("real WebGPU can reuse text completion after cancelling grammar output", async ({
+  page,
+}) => {
+  await loadModel(page);
+  const result = await page.evaluate(async () => {
+    const engine = globalThis.gpuEngine;
+    const request = {
+      prompt: "A color:",
+      max_tokens: 32,
+      temperature: 0,
+      response_format: {
+        type: "grammar",
+        grammar: 'root ::= "red red red red red red red red"',
+      },
+    };
+    const stream = await engine.completion({ ...request, stream: true });
+    const iterator = stream[Symbol.asyncIterator]();
+    const first = await iterator.next();
+    await iterator.return();
+    const next = await engine.completion({
+      ...request,
+      response_format: { type: "grammar", grammar: 'root ::= "blue"' },
+    });
+    return { first, next };
+  });
+  expect(result.first.done).toBe(false);
+  expect(result.next.choices[0].text).toBe("blue");
+  expect(result.next.choices[0].finish_reason).toBe("stop");
+});

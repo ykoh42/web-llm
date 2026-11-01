@@ -27,6 +27,8 @@ import {
   ChatCompletionStreamOptions,
   CompletionUsage,
   ChatCompletionFinishReason,
+  ResponseFormat,
+  validateResponseFormat,
 } from "./chat_completion";
 
 export class Completions {
@@ -64,6 +66,9 @@ export interface CompletionCreateParamsBase {
    * The prompt(s) to generate completions for, encoded as a string.
    */
   prompt: string;
+
+  /** WebLLM extension for constraining the generated text. */
+  response_format?: ResponseFormat;
 
   /**
    * Echo back the prompt in addition to the completion
@@ -365,6 +370,7 @@ export function postInitAndCheckFields(
   currentModelId: string,
 ): void {
   rejectCompletionResumable(request);
+  validateResponseFormat(request.response_format);
 
   // 1. Check unsupported fields in request
   const unsupported: Array<string> = [];

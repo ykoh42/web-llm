@@ -1185,6 +1185,7 @@ export class MLCEngine implements MLCEngineInterface {
       logit_bias: request.logit_bias,
       logprobs: request.logprobs,
       top_logprobs: request.top_logprobs,
+      response_format: request.response_format,
       ignore_eos: request.ignore_eos,
       enable_latency_breakdown: request.extra_body?.enable_latency_breakdown,
     };
@@ -1221,6 +1222,11 @@ export class MLCEngine implements MLCEngineInterface {
       let prompt_tokens = 0;
       let prefill_time = 0;
       let decode_time = 0;
+      const usedGrammar =
+        request.response_format?.type === "grammar" ||
+        request.response_format?.type === "json_object";
+      let grammar_init_s = 0;
+      let grammar_time = 0;
       for (let i = 0; i < n; i++) {
         let outputMessage: string;
         if (this.interruptSignal) {
@@ -1253,6 +1259,11 @@ export class MLCEngine implements MLCEngineInterface {
         prompt_tokens += selectedPipeline.getCurRoundPrefillTotalTokens();
         prefill_time += selectedPipeline.getCurRoundPrefillTotalTime();
         decode_time += selectedPipeline.getCurRoundDecodingTotalTime();
+        if (usedGrammar) {
+          grammar_init_s += selectedPipeline.getCurRoundGrammarInitTotalTime();
+          grammar_time +=
+            selectedPipeline.getCurRoundGrammarPerTokenTotalTime();
+        }
       }
 
       const latencyBreakdown: LatencyBreakdown =
@@ -1276,6 +1287,11 @@ export class MLCEngine implements MLCEngineInterface {
             time_to_first_token_s: prefill_time,
             time_per_output_token_s:
               decode_tokens > 0 ? decode_time / decode_tokens : 0,
+            ...(usedGrammar && {
+              grammar_init_s,
+              grammar_per_token_s:
+                completion_tokens > 0 ? grammar_time / completion_tokens : 0,
+            }),
             latencyBreakdown: request.extra_body?.enable_latency_breakdown
               ? latencyBreakdown
               : undefined,
